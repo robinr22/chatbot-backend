@@ -1,0 +1,32 @@
+// Prisma schema for Supabase Postgres
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  userId    Int       @id @default(autoincrement())
+  name      String
+  email     String    @unique
+  password  String    // hashed
+  createdAt DateTime  @default(now())
+  conversations Conversation[]
+}
+
+model Conversation {
+  id      Int      @id @default(autoincrement())
+  userId  Int
+  user    User     @relation(fields: [userId], references: [userId])
+  date    DateTime @default(now())
+  question String
+  answer   String
+
+  @@index([userId, date])
+}
+
+
