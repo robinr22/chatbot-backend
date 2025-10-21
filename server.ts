@@ -40,13 +40,19 @@ app.post("/api/chat", async (req, res) => {
       userId?: number | string;
     };
 
+    // Type-safe message conversion
+    const typedMessages = messages?.map(msg => ({
+      role: msg.role as "user" | "assistant" | "system",
+      content: msg.content
+    })) || [];
+
     if (!openai.apiKey) {
       return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
     }
 
     const chatMessages = [
-      { role: "system", content: config.systemPrompt },
-      ...(messages || [])
+      { role: "system" as const, content: config.systemPrompt },
+      ...typedMessages
     ];
 
     const completion = await openai.chat.completions.create({
