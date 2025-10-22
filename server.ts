@@ -35,6 +35,7 @@ app.post("/api/chat", async (req, res) => {
     }
 
     if (!OPENAI_API_KEY) {
+      console.error("OpenAI API key not configured");
       return res.status(500).json({ error: "OpenAI API key not configured" });
     }
 
