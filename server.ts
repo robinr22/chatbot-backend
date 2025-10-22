@@ -70,7 +70,7 @@ Achte darauf, die Konversation natürlich zu gestalten – du bist professionell
     console.log("OpenAI response received:", content.substring(0, 100) + "...");
     
     return res.json({ content });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Chat error:", err);
     return res.status(500).json({ error: "Chat request failed", details: err.message });
   }
