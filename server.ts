@@ -1,32 +1,44 @@
 import express from "express";
 import cors from "cors";
 import { OpenAI } from "openai";
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { createClient } from "@supabase/supabase-js";
 import { config, ensureConfig } from "./config";
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-const prisma = new PrismaClient();
+// Initialize Supabase client
+const supabase = createClient(config.supabaseUrl, config.supabaseServiceKey);
 
 ensureConfig();
 const openai = new OpenAI({ apiKey: config.apiKey });
 
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body as { name: string; email: string; password: string };
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: "Missing name, email or password" });
+    const { email, password, name } = req.body as { email: string; password: string; name: string };
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: "Missing email, password or name" });
     }
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      return res.status(409).json({ error: "Email already registered" });
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: name,
+        },
+      },
+    });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
     }
-    const hashed = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({ data: { name, email, password: hashed } });
-    return res.status(201).json({ userId: user.userId, name: user.name, email: user.email });
+
+    return res.status(201).json({ 
+      user: data.user,
+      message: "Registration successful. Please check your email to confirm your account." 
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: "Registration failed" });
@@ -61,19 +73,7 @@ app.post("/api/chat", async (req, res) => {
     });
 
     const content = completion.choices?.[0]?.message?.content ?? "";
-    // Autosave: if userId present, persist last user message as question
-    if (userId) {
-      const lastUser = [...(messages || [])].reverse().find(m => m.role === "user");
-      if (lastUser) {
-        await prisma.conversation.create({
-          data: {
-            userId: Number(userId),
-            question: lastUser.content,
-            answer: content,
-          },
-        });
-      }
-    }
+    // Note: Chat saving will be handled by frontend with Supabase
     return res.json({ content });
   } catch (err) {
     console.error(err);
@@ -84,7 +84,11 @@ app.post("/api/chat", async (req, res) => {
 app.get("/api/db/health", async (_req, res) => {
   try {
     console.log('Health check started');
-    await prisma.$queryRaw`SELECT 1`;
+    const { data, error } = await supabase.from("conversations").select("count").limit(1);
+    if (error) {
+      console.error('Supabase health check failed:', error);
+      return res.status(500).json({ ok: false, error: error.message });
+    }
     console.log('Health check successful');
     res.json({ ok: true });
   } catch (e) {
