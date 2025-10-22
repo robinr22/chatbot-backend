@@ -83,15 +83,28 @@ app.post("/api/chat", async (req, res) => {
 
 app.get("/api/db/health", async (_req, res) => {
   try {
+    console.log('Health check started');
     await prisma.$queryRaw`SELECT 1`;
+    console.log('Health check successful');
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ ok: false });
+    console.error('Health check failed:', e);
+    res.status(500).json({ ok: false, error: e.message });
   }
+});
+
+// Add error handling middleware
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('Server error:', err);
+  res.status(500).json({ error: 'Internal server error', details: err.message });
 });
 
 const PORT = Number(process.env.PORT || 3001);
 app.listen(PORT, () => {
   console.log(`Backend listening on http://localhost:${PORT}`);
+  console.log('Environment check:');
+  console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'SET' : 'MISSING');
+  console.log('SUPABASE_URL:', process.env.SUPABASE_URL ? 'SET' : 'MISSING');
+  console.log('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING');
 });
 
