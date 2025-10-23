@@ -111,7 +111,6 @@ Achte darauf, die Konversation natürlich zu gestalten – du bist professionell
           .from('messages')
           .insert({
             conversation_id: conversationId,
-            user_id: userId,
             role: 'user',
             content: lastUserMessage.content,
             created_at: new Date().toISOString()
@@ -129,7 +128,6 @@ Achte darauf, die Konversation natürlich zu gestalten – du bist professionell
           .from('messages')
           .insert({
             conversation_id: conversationId,
-            user_id: userId,
             role: 'assistant',
             content: content,
             created_at: new Date().toISOString()
