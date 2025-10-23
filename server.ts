@@ -61,6 +61,7 @@ app.post("/api/chat", async (req, res) => {
       userId: userId, 
       conversationId: conversationId 
     });
+    console.log("Raw request body:", JSON.stringify(req.body, null, 2));
     
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "Messages array required" });
