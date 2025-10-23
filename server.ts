@@ -23,12 +23,24 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // Health check
-app.get("/api/db/health", (req, res) => {
+app.get("/api/db/health", async (req, res) => {
   console.log("Health check requested");
+  
+  let supabaseStatus = false;
+  try {
+    const { data, error } = await supabase.from("conversations").select("count").limit(1);
+    supabaseStatus = !error;
+  } catch (e) {
+    console.error("Supabase health check failed:", e);
+  }
+  
   res.json({ 
     ok: true, 
     timestamp: new Date().toISOString(),
-    openai: !!OPENAI_API_KEY
+    openai: !!OPENAI_API_KEY,
+    supabase: supabaseStatus,
+    supabaseUrl: !!SUPABASE_URL,
+    supabaseKey: !!SUPABASE_SERVICE_KEY
   });
 });
 
