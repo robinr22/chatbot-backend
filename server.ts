@@ -54,8 +54,13 @@ app.get("/api/db/health", async (req, res) => {
 // Chat endpoint
 app.post("/api/chat", async (req, res) => {
   try {
-    console.log("Chat request received");
+    console.log("=== CHAT REQUEST RECEIVED ===");
     const { messages, userId, conversationId } = req.body;
+    console.log("Request body:", { 
+      messagesCount: messages?.length, 
+      userId: userId, 
+      conversationId: conversationId 
+    });
     
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "Messages array required" });
@@ -97,6 +102,11 @@ Achte darauf, die Konversation natürlich zu gestalten – du bist professionell
     console.log("OpenAI response received:", content.substring(0, 100) + "...");
     
     // Save conversation to Supabase if userId is provided
+    console.log("=== CHECKING SUPABASE SAVE CONDITIONS ===");
+    console.log("userId exists:", !!userId);
+    console.log("conversationId exists:", !!conversationId);
+    console.log("Will attempt Supabase save:", !!(userId && conversationId));
+    
     if (userId && conversationId) {
       try {
         console.log('=== SUPABASE SAVE ATTEMPT ===');
