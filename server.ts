@@ -99,9 +99,11 @@ Achte darauf, die Konversation natürlich zu gestalten – du bist professionell
     // Save conversation to Supabase if userId is provided
     if (userId && conversationId) {
       try {
-        console.log('Attempting to save messages to Supabase...');
+        console.log('=== SUPABASE SAVE ATTEMPT ===');
         console.log('userId:', userId);
         console.log('conversationId:', conversationId);
+        console.log('Supabase URL:', process.env.SUPABASE_URL);
+        console.log('Supabase Key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
         
         // Get the last user message
         const lastUserMessage = messages[messages.length - 1];
@@ -118,9 +120,10 @@ Achte darauf, die Konversation natürlich zu gestalten – du bist professionell
           .select();
         
         if (userError) {
-          console.error('Error saving user message:', userError);
+          console.error('❌ ERROR saving user message:', userError);
+          console.error('Error details:', JSON.stringify(userError, null, 2));
         } else {
-          console.log('User message saved successfully:', userData);
+          console.log('✅ User message saved successfully:', userData);
         }
         
         // Save assistant message
@@ -135,9 +138,10 @@ Achte darauf, die Konversation natürlich zu gestalten – du bist professionell
           .select();
         
         if (assistantError) {
-          console.error('Error saving assistant message:', assistantError);
+          console.error('❌ ERROR saving assistant message:', assistantError);
+          console.error('Error details:', JSON.stringify(assistantError, null, 2));
         } else {
-          console.log('Assistant message saved successfully:', assistantData);
+          console.log('✅ Assistant message saved successfully:', assistantData);
         }
         
         console.log('Messages saved to Supabase successfully');
