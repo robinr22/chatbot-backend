@@ -9,7 +9,7 @@ app.use(express.json({ limit: "1mb" }));
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 
 if (!OPENAI_API_KEY) {
   console.error("Missing OPENAI_API_KEY");
@@ -20,7 +20,12 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
 }
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+});
 
 // Health check
 app.get("/api/db/health", async (req, res) => {
@@ -92,40 +97,48 @@ Achte darauf, die Konversation natürlich zu gestalten – du bist professionell
     // Save conversation to Supabase if userId is provided
     if (userId && conversationId) {
       try {
+        console.log('Attempting to save messages to Supabase...');
+        console.log('userId:', userId);
+        console.log('conversationId:', conversationId);
+        
         // Get the last user message
         const lastUserMessage = messages[messages.length - 1];
         
         // Save user message
-        const { error: userError } = await supabase
+        const { data: userData, error: userError } = await supabase
           .from('messages')
           .insert({
             conversation_id: conversationId,
-            user_id: userId,
             role: 'user',
             content: lastUserMessage.content,
             created_at: new Date().toISOString()
-          });
+          })
+          .select();
         
         if (userError) {
           console.error('Error saving user message:', userError);
+        } else {
+          console.log('User message saved successfully:', userData);
         }
         
         // Save assistant message
-        const { error: assistantError } = await supabase
+        const { data: assistantData, error: assistantError } = await supabase
           .from('messages')
           .insert({
             conversation_id: conversationId,
-            user_id: userId,
             role: 'assistant',
             content: content,
             created_at: new Date().toISOString()
-          });
+          })
+          .select();
         
         if (assistantError) {
           console.error('Error saving assistant message:', assistantError);
+        } else {
+          console.log('Assistant message saved successfully:', assistantData);
         }
         
-        console.log('Messages saved to Supabase');
+        console.log('Messages saved to Supabase successfully');
       } catch (error) {
         console.error('Error saving to Supabase:', error);
       }
