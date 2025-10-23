@@ -17,9 +17,11 @@ if (!OPENAI_API_KEY) {
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error("Missing Supabase configuration");
+  process.exit(1);
 }
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: {
     autoRefreshToken: false,
