@@ -35,7 +35,11 @@ app.get("/api/db/health", async (req, res) => {
   
   let supabaseStatus = false;
   try {
+    console.log("Testing Supabase connection...");
+    console.log("Supabase URL:", SUPABASE_URL);
+    console.log("Supabase Key exists:", !!SUPABASE_SERVICE_KEY);
     const { data, error } = await supabase.from("conversations").select("count").limit(1);
+    console.log("Supabase query result:", { data, error });
     supabaseStatus = !error;
   } catch (e) {
     console.error("Supabase health check failed:", e);
