@@ -66,6 +66,10 @@ app.post("/api/chat", async (req, res) => {
       conversationId: conversationId 
     });
     console.log("Raw request body:", JSON.stringify(req.body, null, 2));
+    console.log("=== CHECKING SUPABASE SAVE CONDITIONS ===");
+    console.log("userId exists:", !!userId);
+    console.log("conversationId exists:", !!conversationId);
+    console.log("Will attempt Supabase save:", !!(userId && conversationId));
     
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "Messages array required" });
