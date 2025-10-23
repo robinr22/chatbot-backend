@@ -1,28 +1,58 @@
 import express from "express";
 import cors from "cors";
 import { OpenAI } from "openai";
+import { createClient } from "@supabase/supabase-js";
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 if (!OPENAI_API_KEY) {
     console.error("Missing OPENAI_API_KEY");
 }
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    console.error("Missing Supabase configuration");
+    process.exit(1);
+}
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false
+    }
+});
 // Health check
-app.get("/api/db/health", (req, res) => {
+app.get("/api/db/health", async (req, res) => {
     console.log("Health check requested");
+    let supabaseStatus = false;
+    try {
+        const { data, error } = await supabase.from("conversations").select("count").limit(1);
+        supabaseStatus = !error;
+    }
+    catch (e) {
+        console.error("Supabase health check failed:", e);
+    }
     res.json({
         ok: true,
         timestamp: new Date().toISOString(),
-        openai: !!OPENAI_API_KEY
+        openai: !!OPENAI_API_KEY,
+        supabase: supabaseStatus,
+        supabaseUrl: !!SUPABASE_URL,
+        supabaseKey: !!SUPABASE_SERVICE_KEY
     });
 });
 // Chat endpoint
 app.post("/api/chat", async (req, res) => {
     try {
-        console.log("Chat request received");
-        const { messages } = req.body;
+        console.log("=== CHAT REQUEST RECEIVED ===");
+        const { messages, userId, conversationId } = req.body;
+        console.log("Request body:", {
+            messagesCount: messages?.length,
+            userId: userId,
+            conversationId: conversationId
+        });
+        console.log("Raw request body:", JSON.stringify(req.body, null, 2));
         if (!messages || !Array.isArray(messages)) {
             return res.status(400).json({ error: "Messages array required" });
         }
@@ -56,11 +86,132 @@ Achte darauf, die Konversation natürlich zu gestalten – du bist professionell
         });
         const content = completion.choices?.[0]?.message?.content ?? "";
         console.log("OpenAI response received:", content.substring(0, 100) + "...");
+        // Save conversation to Supabase if userId is provided
+        console.log("=== CHECKING SUPABASE SAVE CONDITIONS ===");
+        console.log("userId exists:", !!userId);
+        console.log("conversationId exists:", !!conversationId);
+        console.log("Will attempt Supabase save:", !!(userId && conversationId));
+        if (userId && conversationId) {
+            try {
+                console.log('=== SUPABASE SAVE ATTEMPT ===');
+                console.log('userId:', userId);
+                console.log('conversationId:', conversationId);
+                console.log('Supabase URL:', process.env.SUPABASE_URL);
+                console.log('Supabase Key exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+                // Get the last user message
+                const lastUserMessage = messages[messages.length - 1];
+                // Save user message
+                const { data: userData, error: userError } = await supabase
+                    .from('messages')
+                    .insert({
+                    conversation_id: conversationId,
+                    role: 'user',
+                    content: lastUserMessage.content,
+                    created_at: new Date().toISOString()
+                })
+                    .select();
+                if (userError) {
+                    console.error('❌ ERROR saving user message:', userError);
+                    console.error('Error details:', JSON.stringify(userError, null, 2));
+                }
+                else {
+                    console.log('✅ User message saved successfully:', userData);
+                }
+                // Save assistant message
+                const { data: assistantData, error: assistantError } = await supabase
+                    .from('messages')
+                    .insert({
+                    conversation_id: conversationId,
+                    role: 'assistant',
+                    content: content,
+                    created_at: new Date().toISOString()
+                })
+                    .select();
+                if (assistantError) {
+                    console.error('❌ ERROR saving assistant message:', assistantError);
+                    console.error('Error details:', JSON.stringify(assistantError, null, 2));
+                }
+                else {
+                    console.log('✅ Assistant message saved successfully:', assistantData);
+                }
+                console.log('Messages saved to Supabase successfully');
+            }
+            catch (error) {
+                console.error('Error saving to Supabase:', error);
+            }
+        }
         return res.json({ content });
     }
     catch (err) {
         console.error("Chat error:", err);
         return res.status(500).json({ error: "Chat request failed", details: err.message });
+    }
+});
+// Create new conversation
+app.post("/api/conversations", async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId) {
+            return res.status(400).json({ error: "userId required" });
+        }
+        const { data, error } = await supabase
+            .from('conversations')
+            .insert({
+            user_id: userId,
+            title: 'Neue Unterhaltung',
+            created_at: new Date().toISOString()
+        })
+            .select()
+            .single();
+        if (error) {
+            console.error('Error creating conversation:', error);
+            return res.status(500).json({ error: "Failed to create conversation" });
+        }
+        res.json({ conversationId: data.id });
+    }
+    catch (err) {
+        console.error("Conversation creation error:", err);
+        res.status(500).json({ error: "Failed to create conversation" });
+    }
+});
+// Get user conversations
+app.get("/api/conversations/:userId", async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { data, error } = await supabase
+            .from('conversations')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+        if (error) {
+            console.error('Error fetching conversations:', error);
+            return res.status(500).json({ error: "Failed to fetch conversations" });
+        }
+        res.json({ conversations: data });
+    }
+    catch (err) {
+        console.error("Conversation fetch error:", err);
+        res.status(500).json({ error: "Failed to fetch conversations" });
+    }
+});
+// Get conversation messages
+app.get("/api/conversations/:conversationId/messages", async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: true });
+        if (error) {
+            console.error('Error fetching messages:', error);
+            return res.status(500).json({ error: "Failed to fetch messages" });
+        }
+        res.json({ messages: data });
+    }
+    catch (err) {
+        console.error("Message fetch error:", err);
+        res.status(500).json({ error: "Failed to fetch messages" });
     }
 });
 // Error handling
